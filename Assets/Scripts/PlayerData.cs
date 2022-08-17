@@ -7,14 +7,14 @@ public class PlayerData : MonoBehaviour
 {
     public GameObject text;
 
-    private Text textVal;
+    private TMPro.TextMeshPro textVal;
     private int score;
     private int hp;
     void Start()
     {
         score = 0;
         hp = 3;
-        textVal = text.GetComponent<Text>();
+        textVal = text.GetComponent<TMPro.TextMeshPro>();
         UpdateText();
     }
     public void TakeDamage(int dmg)
@@ -41,6 +41,6 @@ public class PlayerData : MonoBehaviour
                 textVal.text += " ";
             }
         }
-        textVal.text += " PTS: " + score.ToString();
+        textVal.text += "\nPTS: " + score.ToString();
     }
 }

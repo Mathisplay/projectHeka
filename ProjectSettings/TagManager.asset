@@ -9,6 +9,7 @@ TagManager:
   - Puzzle
   - EnemyProjectile
   - Enemy
+  - Destroyable
   layers:
   - Default
   - TransparentFX

@@ -8,6 +8,7 @@ public class EnemyBehaviour : MonoBehaviour
     public GameObject enemyMissilePrefab;
     public AudioClip charging;
     public AudioClip shooting;
+    public GameObject deathParticles;
 
     private GameObject playerHead;
     private ParticleSystem shootingPrepAnimation;
@@ -24,6 +25,13 @@ public class EnemyBehaviour : MonoBehaviour
     void Update()
     {
         gameObject.transform.LookAt(playerHead.transform);
+    }
+    public void DeathParticle()
+    {
+        var obj = Instantiate(deathParticles);
+        obj.transform.position = gameObject.transform.position;
+        obj.transform.rotation = gameObject.transform.rotation;
+        obj.transform.parent = null;
     }
     IEnumerator MoveAround()
     {
@@ -88,5 +96,9 @@ public class EnemyBehaviour : MonoBehaviour
                 yield return 0;
             }
         }
+    }
+    private void OnDestroy()
+    {
+        DeathParticle();
     }
 }

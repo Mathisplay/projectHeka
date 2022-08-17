@@ -59,7 +59,7 @@ GameObject:
   - component: {fileID: 8255029511706606762}
   m_Layer: 0
   m_Name: Enemy
-  m_TagString: Untagged
+  m_TagString: Enemy
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -95,6 +95,7 @@ MonoBehaviour:
   enemyMissilePrefab: {fileID: 5368518681715554615, guid: 38c94a6833e164648924cc7105c6e1d1, type: 3}
   charging: {fileID: 8300000, guid: 962f77ba9c4b59d468caa6d7905b9b5f, type: 3}
   shooting: {fileID: 8300000, guid: ae6930839a9ce3e49af9fc219dfca021, type: 3}
+  deathParticles: {fileID: 4272509373992589210, guid: 9d1238801bb3a694ab406042618ed313, type: 3}
 --- !u!198 &7271731317502289832
 ParticleSystem:
   m_ObjectHideFlags: 0

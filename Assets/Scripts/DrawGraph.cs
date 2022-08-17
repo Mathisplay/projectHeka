@@ -65,22 +65,31 @@ public class DrawGraph : MonoBehaviour
     public GameObject puzzleBlock; // user answer block object
     public GameObject electricity; // spark effect object
     public GameObject playerData;
+    public List<TextAsset> premadeGraphs;
 
     private List<Point> points = new List<Point>(); // list of graph nodes and their connections to the nearest points
     private List<int> sizes = new List<int>(); // sizes of each graph depth level for nicer displaying later
     private string path = ""; // correct answer
-    private Text textVal; // display text text parameter
+    private TMPro.TextMeshPro textVal; // display text text parameter
     private int sparkLocation; // node at which the spark effect stays at currently
     private GameObject currentSpark = null; // created spark effect reference
     private List<GameObject> socketList; // list of created sockets for puzzles
     private List<Renderer> solutionBricks; // list of created puzzle blocks for changing their type later
     private bool animatingChecking = false; // check if the spark effect is playing
     private PlayerData data;
+    private bool doStuffRandomly = false; // don't load graphs from files
+    private bool makeUserSolveWord = false; // don't load graphs from files
 
     void Start()
     {
         data = playerData.GetComponent<PlayerData>();
-        textVal = text.GetComponent<Text>(); // get text text parameter
+        textVal = text.GetComponent<TMPro.TextMeshPro>(); // get text text parameter
+        TextAsset[] obj = Resources.LoadAll<TextAsset>("PresetGraphs");
+        premadeGraphs = new List<TextAsset>();
+        foreach (var item in obj)
+        {
+            premadeGraphs.Add(item);
+        }
         CreateGraph(2, 5);
     }
     void CreateGraph(int complexity, int numberOfBlocks)
@@ -92,22 +101,63 @@ public class DrawGraph : MonoBehaviour
         {
             Destroy(child.gameObject);
         }
-        addPoint(complexity);
-        for (int i = 0; i < numberOfBlocks; i++)
+
+        if (doStuffRandomly)
         {
-            AddRandomPoint(complexity);
+            addPoint(complexity);
+            for (int i = 0; i < numberOfBlocks; i++)
+            {
+                AddRandomPoint(complexity);
+            }
+            ConnectRandomPointIteration(true);
+            ConnectRandomPointIteration(false);
+            PlaceEndpoint();
+            GetGraphDimensions();
+            PlaceDiodes();
+            if (makeUserSolveWord)
+            {
+                PutLinesForWordSolving();
+                GenerateRandomPath(complexity);
+                DrawWordSlots();
+                AddPuzzleBlocksForWord();
+            }
+            else
+            {
+                PutLines();
+                GenerateRandomPath(complexity);
+                DrawAnswer();
+                AddPuzzleBlocks();
+            }
+            SpawnSpark();
         }
-        ConnectRandomPointIteration(true);
-        ConnectRandomPointIteration(false);
-        PlaceEndpoint();
-        GetGraphDimensions();
-        PlaceDiodes();
-        PutLines();
-        GenerateRandomPath(complexity);
-        DrawAnswer();
-        AddPuzzleBlocks();
-        SpawnSpark();
+        else
+        {
+            AddScriptedPoints();
+            GetGraphDimensions();
+            PlaceDiodes();
+            if (makeUserSolveWord)
+            {
+                PutLinesForWordSolving();
+                DrawWordSlots();
+                AddPuzzleBlocksForWord();
+            }
+            else
+            {
+                PutLines();
+                DrawAnswer();
+                AddPuzzleBlocks();
+            }
+            SpawnSpark();
+        }
+
+        for (int i = 0; i < socketList.Count; i++) // socket cleanup
+        {
+            SocketType soc = socketList[i].GetComponent<SocketType>();
+            soc.val = -1;
+        }
     }
+
+    // auto placement
     void addPoint(int difficulty) // add a point to a graph
     {
         points.Add(new Point(difficulty));
@@ -175,6 +225,58 @@ public class DrawGraph : MonoBehaviour
             }
         }
     }
+    // end of auto placement
+    //scripted placement
+    void AddScriptedPoints() // load graph (difficulty, nodes, end nodes, solution, word to accept) 
+    {
+        TextAsset f = premadeGraphs[Random.Range(0, premadeGraphs.Count)];
+        var text = f.text;
+        var listed = text.Split('\n');
+        int diff = int.Parse(listed[0]);
+        int start1 = 0, start2 = 0;
+        for (int i = 2; !string.Equals(listed[i].Trim(), "-"); i++)
+        {
+            start1 = i;
+            var list2 = listed[i].Split(' ');
+            for (int j = 0; j < list2.Length; j++)
+            {
+                points.Add(new Point(diff));
+                //Debug.Log(list2[j]);
+                points[points.Count - 1].SetId(int.Parse(list2[j]));
+                points[points.Count - 1].SetDepth(i - 2);
+            }
+        }
+        start1 += 2;
+        var endNodes = listed[start1].Split(' ');
+        foreach (var item in endNodes)
+        {
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (points[i].id == int.Parse(item))
+                {
+                    points[i].isEnd = true;
+                    break;
+                }
+            }
+        }
+        start1 += 2;
+        for (int i = start1; !string.Equals(listed[i].Trim(), "-"); i++)
+        {
+            start2 = i;
+            var list2 = listed[i].Split(' ');
+            for (int j = 0; j < points.Count; j++)
+            {
+                if (points[j].id == int.Parse(list2[0]))
+                {
+                    points[j].canGoTo.Add(new Connection(int.Parse(list2[2]), list2[1][0]));
+                    points[j].unusedConnections.Remove(list2[1][0]);
+                    break;
+                }
+            }
+        }
+        path = listed[start2 + 2].Trim();
+    }
+    //end of scripted placement
     void GetGraphDimensions() // get the sizes of every node depth group
     {
         sizes = new List<int>();
@@ -232,6 +334,23 @@ public class DrawGraph : MonoBehaviour
         st.to = idTo;
         socketList.Add(obj);
     }
+    void DrawStuckBlocks(Vector2 a, Vector2 b, int idFrom, int idTo, char type) // put sockets on the board
+    {
+        Vector2 u = (b - a) * 0.05f;
+        float degree1 = -90.0f * Mathf.Deg2Rad;
+        Vector2 u1 = new Vector2(Mathf.Cos(degree1) * u.x - Mathf.Sin(degree1) * u.y, Mathf.Sin(degree1) * u.x - Mathf.Cos(degree1) * u.y) / 2.0f;
+        a += u * 5f;
+        a -= u1;
+        var obj = Instantiate(solutionBlock); // create socket object and put it on the correct position on the board
+        obj.transform.parent = gameObject.transform;
+        obj.transform.position = gameObject.transform.position;
+        obj.transform.rotation = gameObject.transform.rotation;
+        obj.transform.localScale = new Vector3(0.001f, 0.001f, 0.0005f);
+        obj.transform.localPosition = new Vector3(a.x, a.y, 0.0108f);
+        PuzzleType p = obj.GetComponentInChildren<PuzzleType>(); // set block properties
+        p.type = type - 'a';
+        p.UpdateMaterial();
+    }
     void PlaceDiodes() // place all node diodes on the board
     {
         int width = sizes.Count;
@@ -276,6 +395,23 @@ public class DrawGraph : MonoBehaviour
                 obj.transform.localPosition = new Vector3(0.0f, 0.0f, 0.0105f);
                 DrawArrow(new Vector2(item.x, item.y), new Vector2(points[item.canGoTo[i].id].x, points[item.canGoTo[i].id].y), obj.GetComponent<LineRenderer>()); // draw an arrow
                 DrawPlaceholders(new Vector2(item.x, item.y), new Vector2(points[item.canGoTo[i].id].x, points[item.canGoTo[i].id].y), item.id, item.canGoTo[i].id); // put a socket on an arrow
+            }
+        }
+    }
+    void PutLinesForWordSolving() // draw all lines and sockets on the board
+    {
+        foreach (var item in points)
+        {
+            for (int i = 0; i < item.canGoTo.Count; i++)
+            {
+                var obj = Instantiate(linePrefab); // create line object and put it on the correct position on the board
+                obj.transform.parent = gameObject.transform;
+                obj.transform.position = gameObject.transform.position;
+                obj.transform.rotation = gameObject.transform.rotation;
+                obj.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
+                obj.transform.localPosition = new Vector3(0.0f, 0.0f, 0.0105f);
+                DrawArrow(new Vector2(item.x, item.y), new Vector2(points[item.canGoTo[i].id].x, points[item.canGoTo[i].id].y), obj.GetComponent<LineRenderer>()); // draw an arrow
+                DrawStuckBlocks(new Vector2(item.x, item.y), new Vector2(points[item.canGoTo[i].id].x, points[item.canGoTo[i].id].y), item.id, item.canGoTo[i].id, item.canGoTo[i].travelBy); // put a block on an arrow
             }
         }
     }
@@ -332,6 +468,24 @@ public class DrawGraph : MonoBehaviour
             solutionBricks.Add(obj.GetComponentInChildren<Renderer>());
         }
     }
+    void DrawWordSlots() // display slots for a word to be filled
+    {
+        float len = -0.0016f * (float)path.Length / 2.0f;
+        for (int i = 0; i < path.Length; i++)
+        {
+            var obj = Instantiate(puzzlePlaceholderPrefab); // create socket object and put it on the correct position on the board
+            obj.transform.parent = gameObject.transform;
+            obj.transform.position = gameObject.transform.position;
+            obj.transform.rotation = gameObject.transform.rotation;
+            obj.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0005f);
+            obj.transform.localPosition = new Vector3(-0.015f, len + 0.0016f * i + 0.0008f, 0.0098f);
+            SocketType st = obj.GetComponent<SocketType>(); // set socket properties
+            st.from = socketList.Count;
+            st.to = socketList.Count;
+            socketList.Add(obj);
+            solutionBricks.Add(obj.GetComponentInChildren<Renderer>());
+        }
+    }
     void AddPuzzleBlocks() // add puzzle blocks
     {
         int counter = 0; // how many blocks we need
@@ -358,6 +512,25 @@ public class DrawGraph : MonoBehaviour
             }
         }
     }
+    void AddPuzzleBlocksForWord() // add puzzle blocks
+    {
+        int counter = path.Length; // how many blocks we need
+        float len = -0.0016f * (float)counter / 2.0f;
+        int counter2 = 0;
+        for (int i = 0; i < counter; i++)
+        {
+            var obj = Instantiate(puzzleBlock); // create puzzle block object and put it on the correct position on the board
+            obj.transform.parent = gameObject.transform;
+            obj.transform.position = gameObject.transform.position;
+            obj.transform.rotation = gameObject.transform.rotation;
+            obj.transform.localScale = new Vector3(0.0015f, 0.0015f, 0.0015f);
+            obj.transform.localPosition = new Vector3(0.015f, len + 0.0016f * counter2 + 0.0008f, 0.012f);
+            PuzzleType p = obj.GetComponentInChildren<PuzzleType>(); // set block properties
+            p.type = path[i] - 'a';
+            p.UpdateMaterial();
+            counter2++;
+        }
+    }
     public void Display(string s) // display a message on the text object
     {
         //textVal.text = s;
@@ -372,7 +545,7 @@ public class DrawGraph : MonoBehaviour
         obj.transform.parent = gameObject.transform;
         obj.transform.position = gameObject.transform.position;
         obj.transform.rotation = gameObject.transform.rotation;
-        obj.transform.localScale = new Vector3(0.0008f, 0.0008f, 0.0008f);
+        obj.transform.localScale = new Vector3(0.0016f, 0.0016f, 0.0016f);
         obj.transform.localPosition = new Vector3(points[0].x, points[0].y, 0.011f);
         currentSpark = obj;
     }
@@ -383,7 +556,14 @@ public class DrawGraph : MonoBehaviour
             animatingChecking = true;
             SpawnSpark();
             sparkLocation = 0;
-            StartCoroutine(GoNext(points[0]));
+            if (makeUserSolveWord)
+            {
+                StartCoroutine(WordGoNext(points[0]));
+            }
+            else
+            {
+                StartCoroutine(GoNext(points[0]));
+            }
         }
     }
     IEnumerator GoNext(Point b) // check if the solution is correct
@@ -482,6 +662,101 @@ public class DrawGraph : MonoBehaviour
         if (solved == true && points[sparkLocation].isEnd == true) // automata puzzle solved
         {
             data.GetPoints(10);
+            doStuffRandomly = !doStuffRandomly;
+            if (doStuffRandomly)
+            {
+                makeUserSolveWord = !makeUserSolveWord;
+            }
+            CreateGraph(2, 5);
+        }
+        animatingChecking = false; // make checking the solution avaliable
+    }
+    IEnumerator WordGoNext(Point b) // check if the solution is correct
+    {
+        ResetTintSolution();
+        for (int i = 0; i < socketList.Count; i++) // check if every transition socket has been filled
+        {
+            SocketType soc = socketList[i].GetComponent<SocketType>();
+            if (soc.val == -1)
+            {
+                animatingChecking = false;
+                yield break;
+            }
+        }
+        textVal.text = "";
+        int location = b.id;
+        int id = 0;
+        for (int i = 0; i < socketList.Count; i++) // check if the automata accepts each letter in a word
+        {
+            int found = 2;
+            for (int j = 0; j < points[location].canGoTo.Count; j++)
+            {
+                //textVal.text += " (" + points[location].canGoTo[j].travelBy + ", " + points[location].canGoTo[j].id.ToString() + ")"; 
+                if (points[location].canGoTo[j].travelBy - 'a' == socketList[i].GetComponent<SocketType>().val) // found a valid path
+                {
+                    for(int k = 0; k < points.Count; k++)
+                    {
+                        if(points[location].canGoTo[j].id == points[k].id)
+                        {
+                            id = k;
+                        }
+                    }
+                    b = points[id];
+                    sparkLocation = id;
+                    location = id;
+                    found = 1;
+                    break;
+                }
+            }
+            if (found == 2) // loops to itself
+            {
+                Material mat = currentSpark.GetComponent<Renderer>().material;
+                Material matBackup = mat;
+                mat = endNodeMaterial;
+                //TintSolution(i);
+                yield return new WaitForSecondsRealtime(0.25f);
+                mat = matBackup;
+                yield return new WaitForSecondsRealtime(0.25f);
+            }
+            else // animate spark path from point a to point b
+            {
+                float t = 0.0f;
+                //textVal.text = i.ToString();
+                while (t < 1.0f)
+                {
+                    t += Time.deltaTime;
+                    Vector3 newPos = Vector3.Lerp(currentSpark.transform.localPosition, new Vector3(b.x, b.y, currentSpark.transform.localPosition.z), t);
+                    currentSpark.transform.localPosition = newPos;
+                    yield return new WaitForSecondsRealtime(0.011f);
+                }
+                Material mat = currentSpark.GetComponent<Renderer>().material;
+                Material matBackup = mat;
+                mat = endNodeMaterial;
+                //TintSolution(i);
+                yield return new WaitForSecondsRealtime(0.5f);
+                mat = matBackup;
+            }
+        }
+        if (points[sparkLocation].isEnd == true) // automata puzzle solved
+        {
+            //textVal.text = "GG";
+        }
+        else // automata puzzle failed
+        {
+            //textVal.text = "MEH";
+            //ResetTintSolution();
+            SpawnSpark();
+        }
+        yield return new WaitForSecondsRealtime(1.0f);
+        //textVal.text = "";
+        if (points[sparkLocation].isEnd == true) // automata puzzle solved
+        {
+            data.GetPoints(10);
+            doStuffRandomly = !doStuffRandomly;
+            if (doStuffRandomly)
+            {
+                makeUserSolveWord = !makeUserSolveWord;
+            }
             CreateGraph(2, 5);
         }
         animatingChecking = false; // make checking the solution avaliable

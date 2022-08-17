@@ -46,7 +46,7 @@ public class SpellProperties : MonoBehaviour
 
     void OnTriggerEnter(Collider collision)
     {
-        if (collision.gameObject.tag == "Obstacle" || collision.gameObject.tag == "Puzzle")
+        if (collision.gameObject.tag == "Obstacle" || collision.gameObject.tag == "Puzzle" || collision.gameObject.tag == "Untagged")
         {
             hp = 0;
             if (spell == Spell.Shield)
@@ -79,7 +79,35 @@ public class SpellProperties : MonoBehaviour
         {
 
         }
-        else
+        else if(collision.gameObject.tag == "Destroyable")
+        {
+            try
+            {
+                Destroy(collision.gameObject.transform.parent.gameObject);
+            }
+            catch
+            {
+                Destroy(collision.gameObject);
+            }
+
+            hp = 0;
+            if (spell == Spell.Shield)
+            {
+                gameObject.GetComponent<XRGrabInteractable>().colliders.Clear();
+                GetComponent<BreakObject>().DestroyMesh();
+            }
+            else if (spell == Spell.Fire)
+            {
+                gameObject.GetComponent<OffsetTomatoPresence>().colliders.Clear();
+                StartCoroutine(DelayedDestroy());
+            }
+            else
+            {
+                gameObject.GetComponent<XRGrabInteractable>().colliders.Clear();
+                Destroy(gameObject);
+            }
+        }
+        else if(collision.gameObject.tag == "Enemy")
         {
             try
             {

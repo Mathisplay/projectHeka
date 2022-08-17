@@ -25,6 +25,7 @@ public class HandActions : MonoBehaviour
     private InputDevice targetDeviceR; // right hand input device
     private PlayerData data; // todo
     private LineRenderer lines; // line renderer for spells
+    private LineRenderer lines2; // line renderer for spell effects
     private Material lineMaterial; // material of the line renderer
     private Color savedLineColor; // line color placeholder before changing it to restore it later
     private bool drawingProcess; // is color animation not playing
@@ -39,6 +40,7 @@ public class HandActions : MonoBehaviour
     private IWorker worker; // ML model worker
     void Start()
     {
+        //worker = WorkerFactory.CreateWorker(WorkerFactory.Type.ComputePrecompiled, runtimeModel);
         nowDrawing = '0';
         runtimeModel = ModelLoader.Load(modelAsset); // load the ML model
         textVal = text.GetComponent<Text>();
@@ -64,6 +66,7 @@ public class HandActions : MonoBehaviour
         InputDevices.GetDevicesWithCharacteristics(controllerChatacteristicsLeft, devicesL); // get all input devices with left controller characteristics
         InputDevices.GetDevicesWithCharacteristics(controllerChatacteristicsRight, devicesR); // get all input devices with righe controller characteristics
         lines = GameObject.Find("SpellDrawer").GetComponent<LineRenderer>(); // get a spell line drawer object
+        lines2 = GameObject.Find("SpellDrawerBonus").GetComponent<LineRenderer>(); // get a spell line drawer object
         lineMaterial = GameObject.Find("SpellDrawer").GetComponent<Renderer>().material; // get a spell line drawer material
         savedLineColor = lineMaterial.GetColor("_EmissionColor"); // save a line drawer material color
         drawObjectL = GameObject.Find("ColliderDotLeft"); // get left hand drawing object
@@ -93,8 +96,10 @@ public class HandActions : MonoBehaviour
             {
                 nowDrawing = 'L'; // set drawing hand as left
                 lines.positionCount += 1; // add a point to a spell drawing
+                lines2.positionCount += 1; // add a point to a spell drawing
                 Vector3 point = drawObjectL.transform.position; // get the position of a drawing object
                 lines.SetPosition(lines.positionCount - 1, point); // save the position
+                lines2.SetPosition(lines2.positionCount - 1, point); // save the position
                 drawingCompleted = false;
             }
             else if(drawingCompleted == false) // just completed drawing
@@ -113,8 +118,10 @@ public class HandActions : MonoBehaviour
             {
                 nowDrawing = 'R'; // set drawing hand as right
                 lines.positionCount += 1; // add a point to a spell drawing
+                lines2.positionCount += 1; // add a point to a spell drawing
                 Vector3 point = drawObjectR.transform.position; // get the position of a drawing object
                 lines.SetPosition(lines.positionCount - 1, point); // save the position
+                lines2.SetPosition(lines2.positionCount - 1, point); // save the position
                 drawingCompleted = false;
             }
             else if (drawingCompleted == false) // just completed drawing
@@ -241,6 +248,7 @@ public class HandActions : MonoBehaviour
     {
         yield return new WaitForSecondsRealtime(0.5f);
         lines.positionCount = 0;
+        lines2.positionCount = 0;
         drawingProcess = true; // color animation is not playing
         lineMaterial.SetColor("_EmissionColor", savedLineColor);
     }
